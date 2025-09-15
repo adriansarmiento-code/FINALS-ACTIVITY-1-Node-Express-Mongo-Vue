@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Items - Vue + Express CRUD</title>
+  <style>
+  /*my general page */
+  body {
+    font-family: "Inter", "Segoe UI", Roboto, sans-serif;
+    margin: 0;
+    padding: 0;
+    background: linear-gradient(135deg, #e0f2fe, #f1f5f9);
+    color: #2c3e50;
+  }
+
+  #app {
+    max-width: 800px;
+    margin: 50px auto;
+    background: #fff;
+    padding: 30px;
+    border-radius: 16px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+    transition: transform 0.2s ease, box-shadow 0.3s ease;
+  }
+
+  #app:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.12);
+  }
+
+  h1 {
+    text-align: center;
+    color: #1e40af;
+    margin-bottom: 28px;
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+  }
+
+  /*form */
+  form {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 24px;
+  }
+
+  input {
+    flex: 1;
+    padding: 12px 14px;
+    font-size: 15px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    outline: none;
+    transition: border 0.2s, box-shadow 0.2s;
+  }
+
+  input:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+  }
+
+  button {
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.25s, transform 0.1s;
+  }
+
+  button:active {
+    transform: scale(0.96);
+  }
+
+  button.primary {
+    background: #3b82f6;
+    color: white;
+  }
+  button.primary:hover {
+    background: #2563eb;
+  }
+
+  button.success {
+    background: #22c55e;
+    color: white;
+  }
+  button.success:hover {
+    background: #16a34a;
+  }
+
+  button.danger {
+    background: #ef4444;
+    color: white;
+  }
+  button.danger:hover {
+    background: #dc2626;
+  }
+
+  button.secondary {
+    background: #6b7280;
+    color: white;
+  }
+  button.secondary:hover {
+    background: #4b5563;
+  }
+
+  /* list of items */
+  ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  li {
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: box-shadow 0.2s, background 0.2s;
+  }
+
+  li:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    background: #ffffff;
+  }
+
+  .controls {
+    display: flex;
+    gap: 6px;
+  }
+
+  .controls button {
+    min-width: 70px;
+  }
+</style>
+</head>
+<body>
+  <div id="app">
+    <h1>Items (Vue + Express)</h1>
+
+    <form @submit.prevent="addItem" style="margin-bottom:12px;">
+      <input v-model="newName" placeholder="Add a new item" />
+      <button type="submit" class="primary">Add</button>
+    </form>
+
+    <ul>
+      <li v-for="item in items" :key="item.id">
+        <div style="flex:1">
+          <template v-if="editingId === item.id">
+            <input v-model="editingName" @keyup.enter="saveEdit(item.id)" />
+          </template>
+          <template v-else>
+            {{ item.name }}
+          </template>
+        </div>
+
+        <div class="controls">
+          <template v-if="editingId === item.id">
+            <button class="success" @click="saveEdit(item.id)">Save</button>
+            <button class="secondary" @click="cancelEdit">Cancel</button>
+          </template>
+          <template v-else>
+            <button class="primary" @click="startEdit(item)">Edit</button>
+            <button class="danger" @click="deleteItem(item.id)">Delete</button>
+          </template>
+        </div>
+      </li>
+    </ul>
+  </div>
+
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script>
+    const { createApp } = Vue;
+
+    createApp({
+      data() {
+        return {
+          items: [],
+          newName: '',
+          editingId: null,
+          editingName: ''
+        };
+      },
+      methods: {
+        async fetchItems() {
+          try {
+            const res = await fetch('/api/items');
+            if (!res.ok) throw new Error('Failed to fetch items');
+            this.items = await res.json();
+          } catch (err) {
+            console.error(err);
+            alert('Could not load items (see console)');
+          }
+        },
+        async addItem() {
+          const name = this.newName && this.newName.trim();
+          if (!name) return;
+          try {
+            const res = await fetch('/api/items', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name })
+            });
+            if (!res.ok) throw new Error('Add failed');
+            const created = await res.json();
+            this.items.push(created);
+            this.newName = '';
+          } catch (err) {
+            console.error(err);
+            alert('Failed to add item');
+          }
+        },
+        startEdit(item) {
+          this.editingId = item.id;
+          this.editingName = item.name;
+        },
+        cancelEdit() {
+          this.editingId = null;
+          this.editingName = '';
+        },
+        async saveEdit(id) {
+          const name = (this.editingName || '').trim();
+          if (!name) return alert('Name required');
+          try {
+            const res = await fetch('/api/items/' + id, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name })
+            });
+            if (!res.ok) throw new Error('Update failed');
+            const updated = await res.json();
+            const idx = this.items.findIndex(i => i.id === id);
+            if (idx !== -1) this.items.splice(idx, 1, updated);
+            this.cancelEdit();
+          } catch (err) {
+            console.error(err);
+            alert('Failed to save edit');
+          }
+        },
+        async deleteItem(id) {
+          if (!confirm('Delete this item?')) return;
+          try {
+            const res = await fetch('/api/items/' + id, { method: 'DELETE' });
+            if (!res.ok) throw new Error('Delete failed');
+            await res.json();
+            this.items = this.items.filter(i => i.id !== id);
+          } catch (err) {
+            console.error(err);
+            alert('Failed to delete item');
+          }
+        }
+      },
+      mounted() {
+        this.fetchItems();
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
